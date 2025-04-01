@@ -18,3 +18,8 @@ some caveats:
 | 2nd      | 37.17m - 4/1/25 | ~6.14M tok (1024 * 5 * 4 * 300) | Vatsa  | Added PSGD | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/GPT4-tok-run.txt) |
 | 3rd      | 70.61m - 3/31/25 | ~14M tok (1024 * 6 * 4 * 570) | Vatsa  | First Run, has DS-MoE, MLA+NSA hybrid, Rope, etc | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/PSGD_run.txt) |
 
+## Unofficial Runs
+
+| Ranking  | Time - date | Data | Person | Description | log |
+| -------- | ----------- | ---- | ------ | ----------- | --- |
+| 1st      | 7.63m - 4/1/25 | ~6.96M tok (1024 * 10 * 4 * 170) | Vatsa  | Used an A100 with (15.04m - 4/1/25) run to see how I look on a real GPU | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/Muon_run.txt) |

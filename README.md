@@ -14,6 +14,6 @@ some caveats:
 
 | Ranking  | Time    | Data | Person | Description | log |
 | -------- | ------- | ---- | ------ | ----------- | --- |
-| 1st      | 37.17m  | ~14M tok (1024*6*4*570)| Vatsa  | Added PSGD | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/GPT4-tok-run.txt) |
-| 2nd      | 70.61m  | ~6.14M tok (1024*5*4*300) | Vatsa  | First Run, has DS-MoE, MLA+NSA hybrid, Rope, etc | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/PSGD_run.txt) |
+| 1st      | 37.17m  | ~6.14M tok (1024*5*4*300) | Vatsa  | Added PSGD | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/GPT4-tok-run.txt) |
+| 2nd      | 70.61m  | ~14M tok (1024*6*4*570) | Vatsa  | First Run, has DS-MoE, MLA+NSA hybrid, Rope, etc | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/PSGD_run.txt) |
 

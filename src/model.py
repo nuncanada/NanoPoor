@@ -2,11 +2,10 @@
 
 import torch
 import torch.nn as nn
-from kron_torch import Kron
 from torch.nn import functional as F
-
 import math
 import inspect
+from muon import Muon
 
 config = {
     "n_embd": 256,
@@ -600,37 +599,75 @@ class Transformer(nn.Module):
 
         return idx, total_size_gb
 
-
     def configure_optimizers(self, weight_decay, learning_rate, device):
-        param_dict = {pn: p for pn, p in self.named_parameters()}
-        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
+        """
+        Configures optimizers to use Muon for >=2D parameters WITHIN `self.blocks`
+        (excluding those known not to receive gradients or with requires_grad=False)
+        and AdamW for all other parameters.
+        """
+        muon_params = []
+        adamw_params = []
 
-        # Separate parameters for different learning rates
-        decay_params = []
-        nodecay_params = []
-        param_groups = []
+        print("--- Refining Parameter Assignment (configure_optimizers) ---")
 
-        for pn, p in param_dict.items():
-            if p.dim() >= 2:
-                decay_params.append(p)
-                param_groups.append({'params': [p], 'weight_decay': weight_decay, 'lr': learning_rate, 'name': pn})
+        # List patterns within 'blocks' known not to receive gradients or that shouldn't be optimized by Muon
+        # Note: '.weight'/'.bias' suffixes are often needed for precise matching.
+        muon_exclude_patterns = [
+            'attn.intra_block_pos_encoding', # Unused or detached
+            'attn.importance_scorer.weight', # Used with non-differentiable topk
+            'attn.importance_scorer.bias',   # Used with non-differentiable topk
+            'attn.block_compressor',         # Unused or detached
+            # 'ffn.expert_bias', # This is already handled by the requires_grad check below
+        ]
+
+        for name, param in self.named_parameters():
+            # 1. Only consider parameters that require gradients
+            if not param.requires_grad:
+                print(f"Skipping (requires_grad=False): {name}")
+                continue # Skip parameters like expert_bias
+
+            is_excluded = False
+            # 2. Check if the parameter name contains any of the explicit exclusion patterns
+            for pattern in muon_exclude_patterns:
+                if pattern in name:
+                    is_excluded = True
+                    print(f"Excluding from Muon (known non-grad pattern): {name}")
+                    break # Stop checking patterns once excluded
+
+            print(f"Processing: {name}, Dim: {param.ndim}, Requires Grad: {param.requires_grad}, Excluded: {is_excluded}")
+
+            # 3. Assign to Muon if: in blocks, >= 2D, AND not explicitly excluded
+            if 'blocks' in name and param.ndim >= 2 and not is_excluded:
+                print(f"  -> Assigning to Muon: {name}")
+                muon_params.append(param)
             else:
-                nodecay_params.append(p)
-                param_groups.append({'params': [p], 'weight_decay': 0.0, 'lr': learning_rate, 'name': pn})
+                # Assign to AdamW if: not in blocks, or < 2D, or explicitly excluded
+                print(f"  -> Assigning to AdamW: {name}")
+                adamw_params.append(param)
 
-        num_decay_params = sum(p.numel() for p in decay_params)
-        num_nodecay_params = sum(p.numel() for p in nodecay_params)
 
-        print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
-        print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+        print("--- Final Parameter Group Counts ---")
+        num_muon_params = sum(p.numel() for p in muon_params)
+        num_adamw_params = sum(p.numel() for p in adamw_params)
+        print(f"num Muon parameters: {num_muon_params:,}")
+        print(f"num AdamW parameters: {num_adamw_params:,}")
 
-        fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
-        use_fused = fused_available and device == 'cuda'
-        extra_args = dict(fused=True) if use_fused else dict()
-        optimizer = Kron(param_groups, lr=learning_rate, weight_decay=weight_decay)
-        print(f"using fused AdamW: {use_fused}")
+        # Defensive check: Ensure Muon doesn't get an empty list
+        if not muon_params:
+             print("\n\n*** WARNING: Muon parameter list is EMPTY after filtering! ***")
+             print("This might be due to incorrect exclusion patterns or model structure.")
+             print("Proceeding with only the AdamW optimizer.")
+             # Return only AdamW optimizer in a list for consistent return type
+             optimizers = [
+                 torch.optim.AdamW(adamw_params, lr=learning_rate, betas=(0.90, 0.95), weight_decay=weight_decay)
+             ]
+        else:
+            optimizers = [
+                Muon(muon_params, lr=0.02, momentum=0.95, rank=0, world_size=1),
+                torch.optim.AdamW(adamw_params, lr=learning_rate, betas=(0.90, 0.95), weight_decay=weight_decay)
+            ]
 
-        return optimizer
+        return optimizers
 
     def update_expert_biases(self, all_router_weights, update_rate):
 
@@ -662,3 +699,4 @@ class Transformer(nn.Module):
         flops_promised = 65e12 # 65 tflops for a t4
         mfu = flops_achieved / flops_promised
         return mfu
+

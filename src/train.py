@@ -10,6 +10,7 @@ import random
 import pickle
 import argparse
 import numpy as np
+from kron_torch import Kron
 from contextlib import nullcontext
 
 import torch.amp as amp  # For GradScaler
@@ -29,7 +30,7 @@ parser.add_argument('--ctx_len', type=int, default=1024)
 parser.add_argument('--eval_interval', type=int, default=20)
 parser.add_argument('--grad_accum', type=int, default=4)
 
-parser.add_argument('--lr', type=float, default=1e-3)
+parser.add_argument('--lr', type=float, default=0.0006)
 parser.add_argument('--min_lr', type=str, default=1e-4)
 parser.add_argument('--dropout', type=float, default=0.02)
 
@@ -83,7 +84,7 @@ warmup_iters = args.warmup_iters
 
 beta1 = 0.9
 beta2 = 0.95
-weight_decay = 1e-1
+weight_decay = 3e-2
 max_grad_norm = 1.0  # Grad clipping
 
 train_losses_history = []
@@ -189,7 +190,7 @@ if resume:
     model.load_state_dict(state_dict)
     m = model.to(device)
 
-    optimizer = model.configure_optimizers(weight_decay, lr, (beta1, beta2), device)
+    optimizer = model.configure_optimizers(weight_decay, lr, device)
     warmup_scheduler = LinearLR(optimizer, start_factor=1e-3, total_iters=warmup_iters)  # Example
     cosine_scheduler = CosineAnnealingLR(optimizer, T_max=max_iters - warmup_iters, eta_min=min_lr)
     scheduler = SequentialLR(optimizer,
@@ -213,7 +214,7 @@ else:
     model = Transformer()
     m = model.to(device)
 
-    optimizer = model.configure_optimizers(weight_decay, lr, (beta1, beta2), device)
+    optimizer = model.configure_optimizers(weight_decay, lr, device)
     warmup_scheduler = LinearLR(optimizer, start_factor=1e-3, total_iters=warmup_iters)
     cosine_scheduler = CosineAnnealingLR(optimizer, T_max=max_iters - warmup_iters, eta_min=min_lr)
     scheduler = SequentialLR(optimizer,
@@ -226,7 +227,7 @@ else:
 
 if "cuda" in device:
     print("compiling the model...")
-    model = torch.compile(model, fullgraph=True, dynamic=False) 
+    model = torch.compile(model, fullgraph=True, dynamic=False)#, mode="reduce-overhead") # reduce overhead is a good cudagraph check, use max-autotune when compute rich
     print("compiled")
 
 p = sum(p.numel() for p in m.parameters())
@@ -295,6 +296,6 @@ for iter in range(start_iter, max_iters + 1):
 
         torch.save(checkpoint, f'checkpoints/{run_name}_check_{iter}.pt')
 
-        plot_loss(train_losses_history, val_losses_history, eval_interval, iter, run_name) 
+        #plot_loss(train_losses_history, val_losses_history, eval_interval, iter, run_name) # Bugged with PGSD, fix later
 
 print('model trained')

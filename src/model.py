@@ -2,7 +2,9 @@
 
 import torch
 import torch.nn as nn
+from kron_torch import Kron
 from torch.nn import functional as F
+
 import math
 import inspect
 
@@ -22,7 +24,7 @@ config = {
 # RoPE
 
 class RoPE(nn.Module):
-    def __init__(self, d, base=10000, device=config['device']):
+    def __init__(self, d, base=100_000_000_000, device=config['device']):
         super().__init__()
 
         self.base = base
@@ -599,7 +601,7 @@ class Transformer(nn.Module):
         return idx, total_size_gb
 
 
-    def configure_optimizers(self, weight_decay, learning_rate, betas, device):
+    def configure_optimizers(self, weight_decay, learning_rate, device):
         param_dict = {pn: p for pn, p in self.named_parameters()}
         param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
 
@@ -625,7 +627,7 @@ class Transformer(nn.Module):
         fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and device == 'cuda'
         extra_args = dict(fused=True) if use_fused else dict()
-        optimizer = torch.optim.AdamW(param_groups, lr=learning_rate, betas=betas, **extra_args) # add Muon
+        optimizer = Kron(param_groups, lr=learning_rate, weight_decay=weight_decay)
         print(f"using fused AdamW: {use_fused}")
 
         return optimizer

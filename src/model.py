@@ -132,7 +132,7 @@ class Attn(nn.Module):
 
         # === Branch 2: Token Selection Branch (NSA) ===
         # Components for importance-based token selection
-        self.importance_scorer = nn.Linear(self.n_embd, 1)
+        self.importance_scorer = nn.Linear(self.n_embd, 1,bias=False)
         # Independent KV for selected tokens
         self.selection_k = nn.Linear(self.n_embd, self.n_head * (self.rope_head_dim + self.nope_head_dim), bias=False)
         self.selection_v = nn.Linear(self.n_embd, self.value_dim, bias=False)
@@ -144,9 +144,9 @@ class Attn(nn.Module):
 
         # Token Compression Mechanism (NSA)
         self.block_compressor = nn.Sequential(
-            nn.Linear(self.block_size * self.n_embd, 4 * self.n_embd),
+            nn.Linear(self.block_size * self.n_embd, 4 * self.n_embd,bias=False),
             nn.GELU(),
-            nn.Linear(4 * self.n_embd, self.n_embd)
+            nn.Linear(4 * self.n_embd, self.n_embd,bias=False)
         )
 
         # Intra-block position encoding
@@ -155,7 +155,7 @@ class Attn(nn.Module):
         )
 
         # Gated Multi-Branch Integration (NSA)
-        self.branch_gate = nn.Linear(self.n_embd, 3)  # 3 gates for 3 branches
+        self.branch_gate = nn.Linear(self.n_embd, 3,bias=False)  # 3 gates for 3 branches
 
         # Output projection
         self.proj = nn.Linear(self.value_dim, self.n_embd, bias=False)
@@ -415,9 +415,9 @@ class MLP(nn.Module):
     def __init__(self):
         super().__init__()
         n_embd = config['n_embd']
-        self.c_fc    = nn.Linear(n_embd, 4 * n_embd)
+        self.c_fc    = nn.Linear(n_embd, 4 * n_embd,bias=False)
         self.gelu    = nn.GELU()
-        self.c_proj  = nn.Linear(4 * n_embd, n_embd)
+        self.c_proj  = nn.Linear(4 * n_embd, n_embd,bias=False)
         self.dropout = nn.Dropout(config['dropout'])
 
     def forward(self, x):
@@ -453,7 +453,7 @@ class DSMoE(nn.Module):
         self.moe_scaling = config["init_moe_scaling"]
         self.experts = nn.ModuleList([MLP() for _ in range(self.num_experts)])
         self.gate = nn.Sequential(
-            nn.Linear(config['n_embd'], self.num_experts - 1),  # exclude shared expert
+            nn.Linear(config['n_embd'], self.num_experts - 1,bias=False),  # exclude shared expert
             UnitCenteredNoise(scaling=0.02),
             nn.Softmax(dim=-1)
         )
@@ -533,7 +533,7 @@ class Transformer(nn.Module):
         self.position_embedding_table = nn.Embedding(config['ctx_len'], config['n_embd'])
         self.blocks = nn.Sequential(*[Block(i) for i in range(config['n_layer'])])
         self.rm_f = nn.RMSNorm(config['n_embd'])
-        self.lm_head = nn.Linear(config['n_embd'], config['vocab_size'])
+        self.lm_head = nn.Linear(config['n_embd'], config['vocab_size'],bias=False)
         self.token_embedding_table.weight = self.lm_head.weight
         self.apply(self._init_weights)
         self.total_params = sum(p.numel() for p in self.parameters())
@@ -608,7 +608,7 @@ class Transformer(nn.Module):
         muon_params = []
         adamw_params = []
 
-        print("--- Refining Parameter Assignment (configure_optimizers) ---")
+        #print("--- Refining Parameter Assignment (configure_optimizers) ---")
 
         # List patterns within 'blocks' known not to receive gradients or that shouldn't be optimized by Muon
         # Note: '.weight'/'.bias' suffixes are often needed for precise matching.
@@ -623,7 +623,7 @@ class Transformer(nn.Module):
         for name, param in self.named_parameters():
             # 1. Only consider parameters that require gradients
             if not param.requires_grad:
-                print(f"Skipping (requires_grad=False): {name}")
+                #print(f"Skipping (requires_grad=False): {name}")
                 continue # Skip parameters like expert_bias
 
             is_excluded = False
@@ -631,22 +631,22 @@ class Transformer(nn.Module):
             for pattern in muon_exclude_patterns:
                 if pattern in name:
                     is_excluded = True
-                    print(f"Excluding from Muon (known non-grad pattern): {name}")
+                    #print(f"Excluding from Muon (known non-grad pattern): {name}")
                     break # Stop checking patterns once excluded
 
-            print(f"Processing: {name}, Dim: {param.ndim}, Requires Grad: {param.requires_grad}, Excluded: {is_excluded}")
+            #print(f"Processing: {name}, Dim: {param.ndim}, Requires Grad: {param.requires_grad}, Excluded: {is_excluded}")
 
             # 3. Assign to Muon if: in blocks, >= 2D, AND not explicitly excluded
             if 'blocks' in name and param.ndim >= 2 and not is_excluded:
-                print(f"  -> Assigning to Muon: {name}")
+                #print(f"  -> Assigning to Muon: {name}")
                 muon_params.append(param)
             else:
                 # Assign to AdamW if: not in blocks, or < 2D, or explicitly excluded
-                print(f"  -> Assigning to AdamW: {name}")
+                #print(f"  -> Assigning to AdamW: {name}")
                 adamw_params.append(param)
 
 
-        print("--- Final Parameter Group Counts ---")
+        #print("--- Final Parameter Group Counts ---")
         num_muon_params = sum(p.numel() for p in muon_params)
         num_adamw_params = sum(p.numel() for p in adamw_params)
         print(f"num Muon parameters: {num_muon_params:,}")
@@ -699,4 +699,3 @@ class Transformer(nn.Module):
         flops_promised = 65e12 # 65 tflops for a t4
         mfu = flops_achieved / flops_promised
         return mfu
-

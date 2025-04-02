@@ -10,7 +10,7 @@ Inspired by [Modded NanoGPT](https://github.com/KellerJordan/modded-nanogpt) and
 As [@main_horse](https://x.com/main_horse/status/1907238044434104633) pointed out, I wrote a method that had the DSMoE class send the current tok to all experts, then apply router weights, so it removed the hard selection of the router, and made it more of a soft weighing instead, the hard routing is loss ~0.1 lower, or about 10 steps faster, but wallclock time per step is 2x longer and init was 8x longer, working on GEMMs
 
 **caveats:**
- - This is an MoE, with 120M params, but ~75M active, @leloykun from the actual NanoGPT speedrunning has said that its 120M active params, so fitting more is free game if you can
+ - This is an MoE, with 120M params, but ~~75M active~~ (currently all 120M), @leloykun from the actual NanoGPT speedrunning has said that its 120M active params, so fitting more is free game if you can
  - used GPT-4 tokenizer (think GPT-2 would be better anyway because the models 124M, but CE loss is not comparable), I'm keeping that because I'm using this code in other models that benefit from this size
  - was just a 1B subset of finewebedu10b, not filtered or anything I just processed that much at this time, will probably fix this later
 

@@ -75,7 +75,7 @@ model.config['ctx_len'] = args.ctx_len
 eval_interval = args.eval_interval
 grad_accum_steps = args.grad_accum  # Num microbatches
 
-lr = args.lr
+lr = 3*args.lr # 3x lr, was in early ngpt spdrns
 min_lr = args.min_lr # Now float
 
 max_iters = args.max_iters
@@ -362,9 +362,12 @@ try: # Wrap training loop in try...finally for cleanup
                 'config': model.config, # Save model config
                 'args': args # Save script arguments
             }
-            checkpoint_path = f'checkpoints/{run_name}_check_{iter}.pt'
-            print(f"Saving checkpoint to {checkpoint_path}")
-            torch.save(checkpoint, checkpoint_path)
+
+            if losses['val'] < 3.28:
+
+              checkpoint_path = f'checkpoints/{run_name}_check_{iter}.pt'
+              print(f"Saving checkpoint to {checkpoint_path}")
+              torch.save(checkpoint, checkpoint_path)
 
             # Plot loss
             #plot_loss(train_losses_history, val_losses_history, eval_interval, iter, run_name)
@@ -405,10 +408,10 @@ try: # Wrap training loop in try...finally for cleanup
         # Step EACH optimizer
         for opt in optimizers:
             # Inside loop check for distributed init status (for debugging)
-            if isinstance(opt, Muon):
-                 print(f"Inside loop, before scaler.step(Muon): dist.is_initialized() = {dist.is_initialized()}")
-                 if not dist.is_initialized():
-                     print("ERROR: Default process group IS NOT INITIALIZED right before Muon step!")
+            #if isinstance(opt, Muon):
+                 #print(f"Inside loop, before scaler.step(Muon): dist.is_initialized() = {dist.is_initialized()}")
+                 #if not dist.is_initialized():
+                     #print("ERROR: Default process group IS NOT INITIALIZED right before Muon step!")
             scaler.step(opt)
 
         # Update GradScaler

@@ -1,4 +1,4 @@
-# colab already imports the tokenized, so this is kind of useless, but just here for reference
+# parallel_tokenize.py (Updated with tokenizer padding)
 
 import os
 import pickle
@@ -9,7 +9,7 @@ import sys
 import multiprocessing as mp
 from functools import partial
 import random
-import tiktoken 
+import tiktoken
 
 # Config
 shard_size = 10_000_000
@@ -18,6 +18,7 @@ dataset_folder = "finewebedu10b/fineweb_chunks"
 output_dir = "tokenized_data"
 tiktoken_model_name = "cl100k_base"
 max_workers = max(1, mp.cpu_count() // 2)
+power_of_base_padding = 64  # Pad vocab to nearest power of this value
 
 try:
     enc = tiktoken.get_encoding(tiktoken_model_name)
@@ -26,22 +27,16 @@ except Exception as e:
     print(f"Error initializing tiktoken encoder '{tiktoken_model_name}': {e}")
     sys.exit(1)
 
+def n64(n):
+    return (64*(n//64))+64
 
 def write_shard(filename, tokens):
     if isinstance(tokens, np.ndarray):
         tokens = tokens.tolist()
 
     header = np.array([20240520, 1, len(tokens)], dtype=np.uint32) # Magic, Version, Length
-    max_token = max(tokens) if tokens else 0
-  
+
     dtype = np.uint32
-    if max_token > np.iinfo(np.uint32).max:
-         print(f"Warning: Max token ID {max_token} exceeds uint32 max. Data loss may occur.", file=sys.stderr)
-         dtype = np.uint32
-    elif max_token > np.iinfo(np.uint16).max:
-         dtype = np.uint32
-    else:
-         dtype = np.uint16 # Use uint16 if possible to save space
 
     try:
         with open(filename, 'wb') as f:
@@ -130,7 +125,7 @@ def create_shards(tokens, output_dir, split_name):
             write_shard(shard_filename, shard_tokens)
             shard_index += 1
             shard_tokens = []
-  
+
     if shard_tokens:
         shard_filename = os.path.join(output_dir, f"{split_name}_{shard_index:06d}.bin")
         write_shard(shard_filename, shard_tokens)
@@ -142,10 +137,10 @@ def create_shards(tokens, output_dir, split_name):
     return shard_index
 
 if __name__ == '__main__':
-    
+
     input_path = os.path.join(data_dir, dataset_folder)
     print(f"Searching for .txt files in: {input_path}")
-    files = sorted(glob.glob(os.path.join(input_path, "*.txt")))
+    files = sorted(glob.glob(os.path.join(input_path, "*.txt")))[:100]
 
     if not files:
         print(f"Error: No .txt files found in {input_path}", file=sys.stderr)
@@ -185,19 +180,26 @@ if __name__ == '__main__':
 
     try:
         enc_meta = tiktoken.get_encoding(tiktoken_model_name)
+        padded_vocab_size = n64(enc_meta.n_vocab)
+
         metadata = {
-            'vocab_size': enc_meta.n_vocab,
+            'vocab_size': padded_vocab_size,
             'block_size': 1024,
             'tokenizer': tiktoken_model_name,
             'num_train_shards': train_shards if 'train_shards' in locals() else 0,
             'num_val_shards': val_shards if 'val_shards' in locals() else 0,
         }
+
         with open(meta_path, 'wb') as f:
             pickle.dump(metadata, f)
+
         print("Metadata saved successfully:")
         print(metadata)
+        print(f"Padded vocab_size: {padded_vocab_size}, Original vocab_size: {original_vocab_size}") # Print both for clarity
+
     except Exception as e:
         print(f"Error saving metadata: {e}", file=sys.stderr)
 
     print(f"\nTokenization complete. Output shards in: {output_dir}")
     print(f"Total shards created: {metadata.get('num_train_shards', 0)} (train) + {metadata.get('num_val_shards', 0)} (val)")
+    print(f"Remember to update 'vocab_size' in your `config.py` to: {metadata.get('vocab_size')}")

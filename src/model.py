@@ -572,30 +572,121 @@ class Transformer(nn.Module):
 
         return logits, loss, all_router_weights
 
-    def generate(self, idx, max_new_tokens): # fix temp, topk later
+    @torch.no_grad()
+    def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None, tiktoken_vocab_size=None):
+        """
+        Generates sequences of tokens autoregressively.
+
+        Args:
+            idx (torch.LongTensor): Input sequence indices (shape: B, T).
+            max_new_tokens (int): Maximum number of new tokens to generate.
+            temperature (float): Sampling temperature. Lower values make the distribution
+                                 sharper (less random), higher values make it flatter (more random).
+                                 Must be positive. Defaults to 1.0.
+            top_k (int, optional): If set, only the top_k most probable tokens are considered
+                                   for sampling at each step. Set to None or 0 to disable.
+                                   Defaults to None.
+            tiktoken_vocab_size (int, optional): The vocabulary size of the tokenizer.
+                                                 If provided and smaller than the model's internal
+                                                 vocab_size (config['vocab_size']), tokens with
+                                                 indices >= tiktoken_vocab_size will be masked out
+                                                 during sampling to prevent generating padding tokens.
+                                                 Defaults to None.
+
+        Returns:
+            Tuple[torch.LongTensor, float]:
+                - idx: The generated sequence including the initial prompt (shape: B, T + max_new_tokens).
+                - total_kv_cache_size_gb: Estimated size of the KV cache in GB after generation.
+        """
+        # Ensure temperature is positive
+        if temperature <= 0:
+            # Using temperature=0 often implies greedy sampling (always pick the max logit).
+            # You could implement that explicitly or just use a very small positive value.
+            # For simplicity here, we'll just use a very small value to avoid division by zero
+            # and maintain the sampling structure. Or raise an error.
+            # raise ValueError("Temperature must be positive.")
+            print("Warning: Temperature <= 0. Using a very small value (1e-6) instead.")
+            temperature = 1e-6
+
+        # Determine if vocabulary masking is needed
+        model_vocab_size = config['vocab_size']
+        use_vocab_mask = False
+        effective_vocab_size = model_vocab_size
+        if tiktoken_vocab_size is not None:
+            if tiktoken_vocab_size < model_vocab_size:
+                print(f"generate(): Masking logits for indices >= {tiktoken_vocab_size} (model vocab size: {model_vocab_size})")
+                use_vocab_mask = True
+                effective_vocab_size = tiktoken_vocab_size # For top_k adjustment if needed
+            elif tiktoken_vocab_size > model_vocab_size:
+                 print(f"generate(): Warning - tiktoken_vocab_size ({tiktoken_vocab_size}) > model_vocab_size ({model_vocab_size}). Masking ineffective.")
+            # else: sizes match, no masking needed
+
+
         for _ in range(max_new_tokens):
-            
-            idx_cond = idx[:, -config['ctx_len']:] # crop to ctx len
-            logits, _, _ = self(idx_cond)
-            logits = logits[:, -1, :] # use final logits
-            probs = F.softmax(logits, dim=-1) # discrete with Softmax
+            # Crop the context if it exceeds the maximum length
+            # Use max() to handle initial prompts shorter than ctx_len
+            start_pos = max(0, idx.size(1) - config['ctx_len'])
+            idx_cond = idx[:, start_pos:] # shape (B, min(T, ctx_len))
 
-            idx_next = torch.multinomial(probs, num_samples=1) # new token
-            idx = torch.cat((idx, idx_next), dim=1) # add token 
+            # Forward pass to get logits for the next token
+            # Assuming your model's forward returns (logits, loss, optional_other_data)
+            # Adjust this based on your actual forward method's return signature
+            logits, _, _ = self(idx_cond) # We only need logits here
 
-        total_size_gb = 0 # flex that kv cache
+            # Get the logits for the very last token position
+            logits = logits[:, -1, :] # shape (B, model_vocab_size)
 
-        for block in self.blocks:
+            # Apply temperature scaling
+            logits = logits / temperature
 
-            if hasattr(block.attn, 'k_cache') and block.attn.k_cache is not None:
-                # k_cache
-                size_bytes = block.attn.k_cache.numel() * block.attn.k_cache.element_size()
-                size_gb = size_bytes / (1024**3)
-                total_size_gb += size_gb
-                # v_cache
-                size_bytes = block.attn.v_cache.numel() * block.attn.v_cache.element_size()
-                size_gb = size_bytes / (1024**3)
-                total_size_gb += size_gb
+            # --- Apply Vocabulary Masking (before top-k and softmax) ---
+            if use_vocab_mask:
+                 logits[:, tiktoken_vocab_size:] = -float('Inf')
+            # -----------------------------------------------------------
+
+            # --- Apply Top-k Filtering (before softmax) ---
+            if top_k is not None and top_k > 0:
+                # Determine the actual k to use (cannot exceed the number of available logits)
+                # After masking, the effective number might be smaller, but topk handles -inf correctly.
+                k = min(top_k, logits.size(-1)) # Use model_vocab_size as the upper bound
+
+                # Get the top k values and indices for each batch element
+                # We only need the values to find the threshold
+                top_k_values, _ = torch.topk(logits, k=k, dim=-1) # shape (B, k)
+
+                # Find the value of the k-th largest logit (the minimum value in the top-k set)
+                kth_logit_value = top_k_values[:, [-1]] # shape (B, 1)
+
+                # Create a mask for logits less than the k-th largest logit
+                # Set logits below the threshold to negative infinity
+                logits[logits < kth_logit_value] = -float('Inf')
+            # -------------------------------------------------
+
+            # Convert logits to probabilities using softmax
+            probs = F.softmax(logits, dim=-1) # shape (B, model_vocab_size)
+
+            # Sample the next token index from the probability distribution
+            idx_next = torch.multinomial(probs, num_samples=1) # shape (B, 1)
+
+            # Append the newly sampled token index to the sequence
+            idx = torch.cat((idx, idx_next), dim=1) # shape (B, T+1)
+
+        # --- Calculate KV Cache Size (after generation loop) ---
+        total_size_gb = 0
+        # Ensure self.blocks exists and contains your transformer blocks
+        if hasattr(self, 'blocks') and self.blocks is not None:
+            for block in self.blocks:
+                # Check if attention layer and its caches exist
+                if hasattr(block, 'attn') and hasattr(block.attn, 'k_cache') and block.attn.k_cache is not None:
+                    # k_cache size
+                    size_bytes = block.attn.k_cache.numel() * block.attn.k_cache.element_size()
+                    total_size_gb += size_bytes / (1024**3)
+                if hasattr(block, 'attn') and hasattr(block.attn, 'v_cache') and block.attn.v_cache is not None:
+                    # v_cache size
+                    size_bytes = block.attn.v_cache.numel() * block.attn.v_cache.element_size()
+                    total_size_gb += size_bytes / (1024**3)
+        else:
+            print("Warning: Cannot calculate KV cache size. `self.blocks` not found or is None.")
 
         return idx, total_size_gb
 

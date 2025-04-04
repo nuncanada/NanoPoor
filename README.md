@@ -18,7 +18,7 @@ As [@main_horse](https://x.com/main_horse/status/1907238044434104633) pointed ou
 
 | Ranking  | Time - date | Data | Person | Description | log |
 | -------- | ----------- | ---- | ------ | ----------- | --- |
-! 1        | 13.77m - 4/4/25 | ~5.2M tok (1024 * 8 * 4 * 160) | muon loves high lr (1e-3)? | [log]
+! 1        | 13.77m - 4/4/25 | ~5.2M tok (1024 * 8 * 4 * 160) | Vatsa  | muon loves high lr (1e-3)? | [log]
 | 2        | 14.86m - 4/2/25 | ~5.2M tok (1024 * 8 * 4 * 160) | Vatsa  | 3x lr, removed ckpt saves every step, less printing | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/tweaks_run_nosave.txt) |
 | 3        | 15.04m - 4/1/25 | ~3.89M tok (1024 * 5 * 4 * 190) | Vatsa  | Used Muon instead | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/Muon_run.txt) |
 | 4        | 37.17m - 4/1/25 | ~6.14M tok (1024 * 5 * 4 * 300) | Vatsa  | Added PSGD | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/GPT4-tok-run.txt) |

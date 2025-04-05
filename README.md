@@ -17,7 +17,7 @@ As [@main_horse](https://x.com/main_horse/status/1907238044434104633) pointed ou
 
 | Ranking  | Time - date | Data | Person | Description | log |
 | -------- | ----------- | ---- | ------ | ----------- | --- |
-| 1        | 7.09m - 4/5/25 | ~3.27M tok (1024 * 8 * 4 * 100) | Vatsa  | now GPT-2 tokenizer shrunk vocab_size, and also shrunk head_lm for stability, less params, now at 80m | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/shrunk_run.txt) |
+| 1        | 7.09m - 4/5/25 | ~3.27M tok (1024 * 8 * 4 * 100) | Vatsa  | now GPT-2 tokenizer shrunk vocab_size, and also shrunk head_lm and n_experts for stability, less params, now at ~73m | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/shrunk_run.txt) |
 | 2        | 11.69m - 4/4/25 | ~3.93M tok (1024 * 8 * 4 * 120) | Vatsa  | lr tuning (5e-4) | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/lr_test_runs.txt) |
 | 3        | 14.86m - 4/2/25 | ~5.21M tok (1024 * 8 * 4 * 160) | Vatsa  | 3x lr, removed ckpt saves every step, less printing | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/tweaks_run_nosave.txt) |
 | 4        | 15.04m - 4/1/25 | ~3.89M tok (1024 * 5 * 4 * 190) | Vatsa  | Used Muon instead | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/Muon_run.txt) |

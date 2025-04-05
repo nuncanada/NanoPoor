@@ -11,18 +11,18 @@ As [@main_horse](https://x.com/main_horse/status/1907238044434104633) pointed ou
 
 **caveats:**
  - This is an MoE, with 120M params, but ~~75M active~~ (currently all 120M), @leloykun from the actual NanoGPT speedrunning has said that its 120M active params, so fitting more is free game if you can
- - used GPT-4 tokenizer (think GPT-2 would be better anyway because the models 124M, but CE loss is not comparable), I'm keeping that because I'm using this code in other models that benefit from this size
  - was just a 1B subset of finewebedu10b, not filtered or anything I just processed that much at this time, will probably fix this later
 
 ## Runs
 
 | Ranking  | Time - date | Data | Person | Description | log |
 | -------- | ----------- | ---- | ------ | ----------- | --- |
-| 1        | 11.69m - 4/4/25 | ~3.93M tok (1024 * 8 * 4 * 120) | Vatsa  | lr tuning (5e-4) | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/lr_test_runs.txt) |
-| 2        | 14.86m - 4/2/25 | ~5.21M tok (1024 * 8 * 4 * 160) | Vatsa  | 3x lr, removed ckpt saves every step, less printing | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/tweaks_run_nosave.txt) |
-| 3        | 15.04m - 4/1/25 | ~3.89M tok (1024 * 5 * 4 * 190) | Vatsa  | Used Muon instead | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/Muon_run.txt) |
-| 4        | 37.17m - 4/1/25 | ~6.14M tok (1024 * 5 * 4 * 300) | Vatsa  | Added PSGD | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/GPT4-tok-run.txt) |
-| 5        | 70.61m - 3/31/25 | ~14M tok (1024 * 6 * 4 * 570) | Vatsa  | First Run, has DS-MoE, MLA+NSA hybrid, Rope, etc | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/PSGD_run.txt) |
+| 1        | 7.09m - 4/5/25 | ~3.27M tok (1024 * 8 * 4 * 100) | Vatsa  | now GPT-2 tokenizer shrunk vocab_size, and also shrunk head_lm for stability, less params, now at 80m | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/shrunk_run.txt) |
+| 2        | 11.69m - 4/4/25 | ~3.93M tok (1024 * 8 * 4 * 120) | Vatsa  | lr tuning (5e-4) | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/lr_test_runs.txt) |
+| 3        | 14.86m - 4/2/25 | ~5.21M tok (1024 * 8 * 4 * 160) | Vatsa  | 3x lr, removed ckpt saves every step, less printing | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/tweaks_run_nosave.txt) |
+| 4        | 15.04m - 4/1/25 | ~3.89M tok (1024 * 5 * 4 * 190) | Vatsa  | Used Muon instead | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/Muon_run.txt) |
+| 5        | 37.17m - 4/1/25 | ~6.14M tok (1024 * 5 * 4 * 300) | Vatsa  | Added PSGD | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/GPT4-tok-run.txt) |
+| 6        | 70.61m - 3/31/25 | ~14M tok (1024 * 6 * 4 * 570) | Vatsa  | First Run, has DS-MoE, MLA+NSA hybrid, Rope, etc | [log](https://github.com/VatsaDev/NanoPoor/blob/main/logs/PSGD_run.txt) |
 
 ## Unofficial Runs
 
